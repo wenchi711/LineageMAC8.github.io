@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動機器人系統</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/tesseract.js@v2.1.5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="app-header">
+            <h1>互動機器人系統</h1>
+            <p class="app-subtitle">智能文字識別 · 玩家管理 · 活動追蹤</p>
+        </header>
+
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="ocr">OCR文字識別</button>
+            <button class="tab-btn" data-tab="players">玩家管理</button>
+            <button class="tab-btn" data-tab="activities">活動管理</button>
+            <button class="tab-btn" data-tab="statistics">出席統計</button>
+        </nav>
+
+        <!-- OCR文字識別 Tab -->
+        <section id="ocr-tab" class="tab-content active">
+            <div class="card">
+                <div class="card__body">
+                    <h2>文字識別功能</h2>
+                    <div class="ocr-controls">
+                        <div class="camera-section">
+                            <button class="btn btn--primary" id="start-camera">啟動相機</button>
+                            <button class="btn btn--secondary" id="capture-image" disabled>拍攝圖片</button>
+                            <input type="file" id="file-input" accept="image/*" class="form-control">
+                        </div>
+                        <div class="preview-section">
+                            <video id="camera-feed" autoplay playsinline style="display: none;"></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                            <img id="preview-image" alt="預覽圖片" style="display: none;">
+                        </div>
+                        <button class="btn btn--primary btn--full-width" id="recognize-text" disabled>識別文字</button>
+                        <div id="ocr-progress" class="progress-indicator" style="display: none;">
+                            <div class="progress-text">正在識別文字...</div>
+                        </div>
+                        <textarea id="extracted-text" class="form-control" rows="8" placeholder="識別出的文字將顯示在這裡..." readonly></textarea>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 玩家管理 Tab -->
+        <section id="players-tab" class="tab-content">
+            <div class="card">
+                <div class="card__body">
+                    <h2>玩家註冊</h2>
+                    <form id="player-form" class="player-form">
+                        <div class="form-group">
+                            <label class="form-label" for="player-id">玩家ID</label>
+                            <input type="text" id="player-id" class="form-control" placeholder="自動生成或手動輸入">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="player-name">玩家姓名 *</label>
+                            <input type="text" id="player-name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="registration-date">註冊日期</label>
+                            <input type="date" id="registration-date" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn--primary">新增玩家</button>
+                        <button type="button" class="btn btn--secondary" id="cancel-edit">取消編輯</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-8">
+                <div class="card__body">
+                    <div class="flex justify-between items-center mb-8">
+                        <h3>玩家列表</h3>
+                        <input type="text" id="player-search" class="form-control" placeholder="搜尋玩家..." style="max-width: 200px;">
+                    </div>
+                    <div id="players-list" class="players-grid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 活動管理 Tab -->
+        <section id="activities-tab" class="tab-content">
+            <div class="card">
+                <div class="card__body">
+                    <h2>建立活動</h2>
+                    <form id="activity-form" class="activity-form">
+                        <div class="form-group">
+                            <label class="form-label" for="activity-name">活動名稱 *</label>
+                            <input type="text" id="activity-name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="activity-date">活動日期 *</label>
+                            <input type="date" id="activity-date" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="activity-time">活動時間 *</label>
+                            <input type="time" id="activity-time" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="activity-description">活動描述</label>
+                            <textarea id="activity-description" class="form-control" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="btn btn--primary">建立活動</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-8">
+                <div class="card__body">
+                    <h3>活動列表與簽到</h3>
+                    <div id="activities-list" class="activities-grid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 出席統計 Tab -->
+        <section id="statistics-tab" class="tab-content">
+            <div class="card">
+                <div class="card__body">
+                    <h2>出席統計</h2>
+                    <div class="stats-controls">
+                        <div class="form-group">
+                            <label class="form-label">統計期間</label>
+                            <div class="flex gap-8">
+                                <input type="date" id="stats-start-date" class="form-control">
+                                <input type="date" id="stats-end-date" class="form-control">
+                                <button class="btn btn--primary" id="update-stats">更新統計</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stats-overview">
+                        <div class="stats-cards">
+                            <div class="stat-card">
+                                <h4>總玩家數</h4>
+                                <div class="stat-number" id="total-players">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <h4>總活動數</h4>
+                                <div class="stat-number" id="total-activities">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <h4>平均出席率</h4>
+                                <div class="stat-number" id="avg-attendance">0%</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="charts-section">
+                        <div class="chart-container">
+                            <canvas id="attendance-chart"></canvas>
+                        </div>
+                    </div>
+                    <button class="btn btn--outline mt-8" id="export-stats">匯出統計報告</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- QR Code Modal -->
+        <div id="qr-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>玩家QR碼</h3>
+                    <button class="modal-close" id="close-qr-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="qr-code-container"></div>
+                    <p id="qr-player-info"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Check-in Modal -->
+        <div id="checkin-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>活動簽到</h3>
+                    <button class="modal-close" id="close-checkin-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <h4 id="checkin-activity-name"></h4>
+                    <div class="form-group">
+                        <label class="form-label">玩家ID或掃描QR碼</label>
+                        <input type="text" id="checkin-player-id" class="form-control" placeholder="輸入玩家ID">
+                    </div>
+                    <div class="checkin-player-list" id="checkin-players"></div>
+                    <button class="btn btn--primary" id="manual-checkin">手動簽到</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
+:root {
+  /* Colors */
+  --color-background: rgba(252, 252, 249, 1);
+  --color-surface: rgba(255, 255, 253, 1);
+  --color-text: rgba(19, 52, 59, 1);
+  --color-text-secondary: rgba(98, 108, 113, 1);
+  --color-primary: rgba(33, 128, 141, 1);
+  --color-primary-hover: rgba(29, 116, 128, 1);
+  --color-primary-active: rgba(26, 104, 115, 1);
+  --color-secondary: rgba(94, 82, 64, 0.12);
+  --color-secondary-hover: rgba(94, 82, 64, 0.2);
+  --color-secondary-active: rgba(94, 82, 64, 0.25);
+  --color-border: rgba(94, 82, 64, 0.2);
+  --color-btn-primary-text: rgba(252, 252, 249, 1);
+  --color-card-border: rgba(94, 82, 64, 0.12);
+  --color-card-border-inner: rgba(94, 82, 64, 0.12);
+  --color-error: rgba(192, 21, 47, 1);
+  --color-success: rgba(33, 128, 141, 1);
+  --color-warning: rgba(168, 75, 47, 1);
+  --color-info: rgba(98, 108, 113, 1);
+  --color-focus-ring: rgba(33, 128, 141, 0.4);
+  --color-select-caret: rgba(19, 52, 59, 0.8);
+
+  /* Common style patterns */
+  --focus-ring: 0 0 0 3px var(--color-focus-ring);
+  --focus-outline: 2px solid var(--color-primary);
+  --status-bg-opacity: 0.15;
+  --status-border-opacity: 0.25;
+  --select-caret-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23134252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  --select-caret-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+
+  /* RGB versions for opacity control */
+  --color-success-rgb: 33, 128, 141;
+  --color-error-rgb: 192, 21, 47;
+  --color-warning-rgb: 168, 75, 47;
+  --color-info-rgb: 98, 108, 113;
+
+  /* Typography */
+  --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-size-4xl: 30px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 550;
+  --font-weight-bold: 600;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --letter-spacing-tight: -0.01em;
+
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-base: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04),
+    0 2px 4px -1px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04),
+    0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+
+  /* Animation */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+}
+
+/* Dark mode colors */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: rgba(31, 33, 33, 1);
+    --color-surface: rgba(38, 40, 40, 1);
+    --color-text: rgba(245, 245, 245, 1);
+    --color-text-secondary: rgba(167, 169, 169, 0.7);
+    --color-primary: rgba(50, 184, 198, 1);
+    --color-primary-hover: rgba(45, 166, 178, 1);
+    --color-primary-active: rgba(41, 150, 161, 1);
+    --color-secondary: rgba(119, 124, 124, 0.15);
+    --color-secondary-hover: rgba(119, 124, 124, 0.25);
+    --color-secondary-active: rgba(119, 124, 124, 0.3);
+    --color-border: rgba(119, 124, 124, 0.3);
+    --color-error: rgba(255, 84, 89, 1);
+    --color-success: rgba(50, 184, 198, 1);
+    --color-warning: rgba(230, 129, 97, 1);
+    --color-info: rgba(167, 169, 169, 1);
+    --color-focus-ring: rgba(50, 184, 198, 0.4);
+    --color-btn-primary-text: rgba(19, 52, 59, 1);
+    --color-card-border: rgba(119, 124, 124, 0.2);
+    --color-card-border-inner: rgba(119, 124, 124, 0.15);
+    --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    --button-border-secondary: rgba(119, 124, 124, 0.2);
+    --color-border-secondary: rgba(119, 124, 124, 0.2);
+    --color-select-caret: rgba(245, 245, 245, 0.8);
+
+    /* Common style patterns - updated for dark mode */
+    --focus-ring: 0 0 0 3px var(--color-focus-ring);
+    --focus-outline: 2px solid var(--color-primary);
+    --status-bg-opacity: 0.15;
+    --status-border-opacity: 0.25;
+    --select-caret-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23134252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    --select-caret-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+
+    /* RGB versions for dark mode */
+    --color-success-rgb: 50, 184, 198;
+    --color-error-rgb: 255, 84, 89;
+    --color-warning-rgb: 230, 129, 97;
+    --color-info-rgb: 167, 169, 169;
+  }
+}
+
+/* Data attribute for manual theme switching */
+[data-color-scheme="dark"] {
+  --color-background: rgba(31, 33, 33, 1);
+  --color-surface: rgba(38, 40, 40, 1);
+  --color-text: rgba(245, 245, 245, 1);
+  --color-text-secondary: rgba(167, 169, 169, 0.7);
+  --color-primary: rgba(50, 184, 198, 1);
+  --color-primary-hover: rgba(45, 166, 178, 1);
+  --color-primary-active: rgba(41, 150, 161, 1);
+  --color-secondary: rgba(119, 124, 124, 0.15);
+  --color-secondary-hover: rgba(119, 124, 124, 0.25);
+  --color-secondary-active: rgba(119, 124, 124, 0.3);
+  --color-border: rgba(119, 124, 124, 0.3);
+  --color-error: rgba(255, 84, 89, 1);
+  --color-success: rgba(50, 184, 198, 1);
+  --color-warning: rgba(230, 129, 97, 1);
+  --color-info: rgba(167, 169, 169, 1);
+  --color-focus-ring: rgba(50, 184, 198, 0.4);
+  --color-btn-primary-text: rgba(19, 52, 59, 1);
+  --color-card-border: rgba(119, 124, 124, 0.15);
+  --color-card-border-inner: rgba(119, 124, 124, 0.15);
+  --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  --color-border-secondary: rgba(119, 124, 124, 0.2);
+  --color-select-caret: rgba(245, 245, 245, 0.8);
+
+  /* Common style patterns - updated for dark mode */
+  --focus-ring: 0 0 0 3px var(--color-focus-ring);
+  --focus-outline: 2px solid var(--color-primary);
+  --status-bg-opacity: 0.15;
+  --status-border-opacity: 0.25;
+  --select-caret-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23134252' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  --select-caret-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+
+  /* RGB versions for dark mode */
+  --color-success-rgb: 50, 184, 198;
+  --color-error-rgb: 255, 84, 89;
+  --color-warning-rgb: 230, 129, 97;
+  --color-info-rgb: 167, 169, 169;
+}
+
+[data-color-scheme="light"] {
+  --color-background: rgba(252, 252, 249, 1);
+  --color-surface: rgba(255, 255, 253, 1);
+  --color-text: rgba(19, 52, 59, 1);
+  --color-text-secondary: rgba(98, 108, 113, 1);
+  --color-primary: rgba(33, 128, 141, 1);
+  --color-primary-hover: rgba(29, 116, 128, 1);
+  --color-primary-active: rgba(26, 104, 115, 1);
+  --color-secondary: rgba(94, 82, 64, 0.12);
+  --color-secondary-hover: rgba(94, 82, 64, 0.2);
+  --color-secondary-active: rgba(94, 82, 64, 0.25);
+  --color-border: rgba(94, 82, 64, 0.2);
+  --color-btn-primary-text: rgba(252, 252, 249, 1);
+  --color-card-border: rgba(94, 82, 64, 0.12);
+  --color-card-border-inner: rgba(94, 82, 64, 0.12);
+  --color-error: rgba(192, 21, 47, 1);
+  --color-success: rgba(33, 128, 141, 1);
+  --color-warning: rgba(168, 75, 47, 1);
+  --color-info: rgba(98, 108, 113, 1);
+  --color-focus-ring: rgba(33, 128, 141, 0.4);
+
+  /* RGB versions for light mode */
+  --color-success-rgb: 33, 128, 141;
+  --color-error-rgb: 192, 21, 47;
+  --color-warning-rgb: 168, 75, 47;
+  --color-info-rgb: 98, 108, 113;
+}
+
+/* Base styles */
+html {
+  font-size: var(--font-size-base);
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h1 {
+  font-size: var(--font-size-4xl);
+}
+h2 {
+  font-size: var(--font-size-3xl);
+}
+h3 {
+  font-size: var(--font-size-2xl);
+}
+h4 {
+  font-size: var(--font-size-xl);
+}
+h5 {
+  font-size: var(--font-size-lg);
+}
+h6 {
+  font-size: var(--font-size-md);
+}
+
+p {
+  margin: 0 0 var(--space-16) 0;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+code,
+pre {
+  font-family: var(--font-family-mono);
+  font-size: calc(var(--font-size-base) * 0.95);
+  background-color: var(--color-secondary);
+  border-radius: var(--radius-sm);
+}
+
+code {
+  padding: var(--space-1) var(--space-4);
+}
+
+pre {
+  padding: var(--space-16);
+  margin: var(--space-16) 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-16);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-standard);
+  border: none;
+  text-decoration: none;
+  position: relative;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-btn-primary-text);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn--primary:active {
+  background: var(--color-primary-active);
+}
+
+.btn--secondary {
+  background: var(--color-secondary);
+  color: var(--color-text);
+}
+
+.btn--secondary:hover {
+  background: var(--color-secondary-hover);
+}
+
+.btn--secondary:active {
+  background: var(--color-secondary-active);
+}
+
+.btn--outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.btn--outline:hover {
+  background: var(--color-secondary);
+}
+
+.btn--sm {
+  padding: var(--space-4) var(--space-12);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-sm);
+}
+
+.btn--lg {
+  padding: var(--space-10) var(--space-20);
+  font-size: var(--font-size-lg);
+  border-radius: var(--radius-md);
+}
+
+.btn--full-width {
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form elements */
+.form-control {
+  display: block;
+  width: 100%;
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+textarea.form-control {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+}
+
+select.form-control {
+  padding: var(--space-8) var(--space-12);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: var(--select-caret-light);
+  background-repeat: no-repeat;
+  background-position: right var(--space-12) center;
+  background-size: 16px;
+  padding-right: var(--space-32);
+}
+
+/* Add a dark mode specific caret */
+@media (prefers-color-scheme: dark) {
+  select.form-control {
+    background-image: var(--select-caret-dark);
+  }
+}
+
+/* Also handle data-color-scheme */
+[data-color-scheme="dark"] select.form-control {
+  background-image: var(--select-caret-dark);
+}
+
+[data-color-scheme="light"] select.form-control {
+  background-image: var(--select-caret-light);
+}
+
+.form-control:focus {
+  border-color: var(--color-primary);
+  outline: var(--focus-outline);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--space-8);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.form-group {
+  margin-bottom: var(--space-16);
+}
+
+/* Card component */
+.card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card__body {
+  padding: var(--space-16);
+}
+
+.card__header,
+.card__footer {
+  padding: var(--space-16);
+  border-bottom: 1px solid var(--color-card-border-inner);
+}
+
+/* Status indicators - simplified with CSS variables */
+.status {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.status--success {
+  background-color: rgba(
+    var(--color-success-rgb, 33, 128, 141),
+    var(--status-bg-opacity)
+  );
+  color: var(--color-success);
+  border: 1px solid
+    rgba(var(--color-success-rgb, 33, 128, 141), var(--status-border-opacity));
+}
+
+.status--error {
+  background-color: rgba(
+    var(--color-error-rgb, 192, 21, 47),
+    var(--status-bg-opacity)
+  );
+  color: var(--color-error);
+  border: 1px solid
+    rgba(var(--color-error-rgb, 192, 21, 47), var(--status-border-opacity));
+}
+
+.status--warning {
+  background-color: rgba(
+    var(--color-warning-rgb, 168, 75, 47),
+    var(--status-bg-opacity)
+  );
+  color: var(--color-warning);
+  border: 1px solid
+    rgba(var(--color-warning-rgb, 168, 75, 47), var(--status-border-opacity));
+}
+
+.status--info {
+  background-color: rgba(
+    var(--color-info-rgb, 98, 108, 113),
+    var(--status-bg-opacity)
+  );
+  color: var(--color-info);
+  border: 1px solid
+    rgba(var(--color-info-rgb, 98, 108, 113), var(--status-border-opacity));
+}
+
+/* Container layout */
+.container {
+  width: 100%;
+  margin-right: auto;
+  margin-left: auto;
+  padding-right: var(--space-16);
+  padding-left: var(--space-16);
+}
+
+@media (min-width: 640px) {
+  .container {
+    max-width: var(--container-sm);
+  }
+}
+@media (min-width: 768px) {
+  .container {
+    max-width: var(--container-md);
+  }
+}
+@media (min-width: 1024px) {
+  .container {
+    max-width: var(--container-lg);
+  }
+}
+@media (min-width: 1280px) {
+  .container {
+    max-width: var(--container-xl);
+  }
+}
+
+/* Utility classes */
+.flex {
+  display: flex;
+}
+.flex-col {
+  flex-direction: column;
+}
+.items-center {
+  align-items: center;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.gap-4 {
+  gap: var(--space-4);
+}
+.gap-8 {
+  gap: var(--space-8);
+}
+.gap-16 {
+  gap: var(--space-16);
+}
+
+.m-0 {
+  margin: 0;
+}
+.mt-8 {
+  margin-top: var(--space-8);
+}
+.mb-8 {
+  margin-bottom: var(--space-8);
+}
+.mx-8 {
+  margin-left: var(--space-8);
+  margin-right: var(--space-8);
+}
+.my-8 {
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-8);
+}
+
+.p-0 {
+  padding: 0;
+}
+.py-8 {
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-8);
+}
+.px-8 {
+  padding-left: var(--space-8);
+  padding-right: var(--space-8);
+}
+.py-16 {
+  padding-top: var(--space-16);
+  padding-bottom: var(--space-16);
+}
+.px-16 {
+  padding-left: var(--space-16);
+  padding-right: var(--space-16);
+}
+
+.block {
+  display: block;
+}
+.hidden {
+  display: none;
+}
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 2px;
+}
+
+/* Dark mode specifics */
+[data-color-scheme="dark"] .btn--outline {
+  border: 1px solid var(--color-border-secondary);
+}
+
+@font-face {
+  font-family: 'FKGroteskNeue';
+  src: url('https://www.perplexity.ai/fonts/FKGroteskNeue.woff2')
+    format('woff2');
+}
+
+/* Application-specific styles */
+.app-header {
+  text-align: center;
+  padding: var(--space-32) 0;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+  color: var(--color-btn-primary-text);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-24);
+}
+
+.app-header h1 {
+  font-size: var(--font-size-4xl);
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+.app-subtitle {
+  margin: var(--space-8) 0 0 0;
+  font-size: var(--font-size-lg);
+  opacity: 0.9;
+}
+
+/* Tab Navigation */
+.tab-nav {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-24);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: var(--space-12) var(--space-20);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all var(--duration-normal) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  color: var(--color-text);
+  background: var(--color-secondary);
+}
+
+.tab-btn.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* Tab Content */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* OCR Styles */
+.ocr-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.camera-section {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.preview-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-base);
+  background: var(--color-secondary);
+}
+
+.preview-section video,
+.preview-section img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: var(--radius-base);
+}
+
+.progress-indicator {
+  text-align: center;
+  padding: var(--space-16);
+  background: var(--color-secondary);
+  border-radius: var(--radius-base);
+}
+
+.progress-text {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+}
+
+/* Player Management */
+.player-form,
+.activity-form {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-16);
+}
+
+.player-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-16);
+  transition: box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.player-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.player-card h4 {
+  margin: 0 0 var(--space-8) 0;
+  color: var(--color-primary);
+}
+
+.player-card .player-id {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-8);
+}
+
+.player-card .player-actions {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
+}
+
+.player-card .btn {
+  flex: 1;
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-sm);
+}
+
+/* Activity Management */
+.activities-grid {
+  display: grid;
+  gap: var(--space-16);
+}
+
+.activity-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-20);
+}
+
+.activity-card h4 {
+  margin: 0 0 var(--space-12) 0;
+  color: var(--color-primary);
+}
+
+.activity-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+}
+
+.activity-info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-info-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.activity-info-value {
+  font-weight: var(--font-weight-medium);
+}
+
+.activity-actions {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.attendees-count {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-4) var(--space-8);
+  background: var(--color-secondary);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Statistics */
+.stats-controls {
+  margin-bottom: var(--space-24);
+}
+
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-16);
+  margin-bottom: var(--space-24);
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-20);
+  text-align: center;
+}
+
+.stat-card h4 {
+  margin: 0 0 var(--space-8) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.stat-number {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.chart-container {
+  position: relative;
+  height: 400px;
+  margin: var(--space-24) 0;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-20);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: var(--font-size-2xl);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0;
+  width: var(--space-32);
+  height: var(--space-32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-base);
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.modal-close:hover {
+  background: var(--color-secondary);
+}
+
+.modal-body {
+  padding: var(--space-20);
+}
+
+/* QR Code */
+#qr-code-container {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-16) 0;
+}
+
+#qr-player-info {
+  text-align: center;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+}
+
+/* Check-in */
+.checkin-player-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  margin: var(--space-16) 0;
+}
+
+.checkin-player-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-12);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.checkin-player-item:last-child {
+  border-bottom: none;
+}
+
+.checkin-player-item.checked-in {
+  background: rgba(var(--color-success-rgb), 0.1);
+}
+
+.checkin-player-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.checkin-player-id {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: var(--space-12);
+  }
+  
+  .tab-nav {
+    justify-content: center;
+  }
+  
+  .tab-btn {
+    padding: var(--space-8) var(--space-12);
+    font-size: var(--font-size-sm);
+  }
+  
+  .camera-section {
+    flex-direction: column;
+  }
+  
+  .player-actions,
+  .activity-actions {
+    flex-direction: column;
+  }
+  
+  .stats-controls .flex {
+    flex-direction: column;
+  }
+  
+  .modal-content {
+    width: 95%;
+    margin: var(--space-16);
+  }
+  
+  .app-header h1 {
+    font-size: var(--font-size-3xl);
+  }
+  
+  .players-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Animation for smooth transitions */
+.tab-content {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Success/Error states */
+.form-control.success {
+  border-color: var(--color-success);
+}
+
+.form-control.error {
+  border-color: var(--color-error);
+}
+
+.notification {
+  position: fixed;
+  top: var(--space-20);
+  right: var(--space-20);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-base);
+  font-weight: var(--font-weight-medium);
+  z-index: 1001;
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+  background: rgba(var(--color-success-rgb), 0.1);
+  color: var(--color-success);
+  border: 1px solid rgba(var(--color-success-rgb), 0.3);
+}
+
+.notification.error {
+  background: rgba(var(--color-error-rgb), 0.1);
+  color: var(--color-error);
+  border: 1px solid rgba(var(--color-error-rgb), 0.3);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Loading states */
+.btn.loading {
+  position: relative;
+  color: transparent;
+}
+
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+// 互動機器人系統 - 主應用程式
+class InteractiveRobotSystem {
+    constructor() {
+        this.currentTab = 'ocr';
+        this.editingPlayerId = null;
+        this.currentActivityId = null;
+        this.camera = null;
+        this.attendanceChart = null;
+        
+        // 數據存儲 (內存中)
+        this.data = {
+            players: [
+                {id: "P001", name: "張小明", registrationDate: "2025-01-15", attendanceHistory: []},
+                {id: "P002", name: "李小華", registrationDate: "2025-01-20", attendanceHistory: []}
+            ],
+            activities: [
+                {id: "A001", name: "周末遊戲競賽", date: "2025-06-07", time: "14:00", description: "每周例行遊戲比賽", attendees: [], status: "upcoming"},
+                {id: "A002", name: "團體訓練", date: "2025-06-08", time: "10:00", description: "團隊建設活動", attendees: [], status: "upcoming"}
+            ],
+            attendance: []
+        };
+        
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.setupTabNavigation();
+        this.setupOCR();
+        this.renderPlayers();
+        this.renderActivities();
+        this.updateStatistics();
+        this.setDefaultDates();
+    }
+
+    setupEventListeners() {
+        // 表單提交
+        document.getElementById('player-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handlePlayerSubmit();
+        });
+
+        document.getElementById('activity-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleActivitySubmit();
+        });
+
+        // 搜尋功能
+        document.getElementById('player-search').addEventListener('input', (e) => {
+            this.filterPlayers(e.target.value);
+        });
+
+        // 統計更新
+        document.getElementById('update-stats').addEventListener('click', () => {
+            this.updateStatistics();
+        });
+
+        // 匯出功能
+        document.getElementById('export-stats').addEventListener('click', () => {
+            this.exportStatistics();
+        });
+
+        // 模態視窗
+        document.getElementById('close-qr-modal').addEventListener('click', () => {
+            this.closeModal('qr-modal');
+        });
+
+        document.getElementById('close-checkin-modal').addEventListener('click', () => {
+            this.closeModal('checkin-modal');
+        });
+
+        // 手動簽到
+        document.getElementById('manual-checkin').addEventListener('click', () => {
+            this.handleManualCheckin();
+        });
+
+        // 取消編輯
+        document.getElementById('cancel-edit').addEventListener('click', () => {
+            this.cancelPlayerEdit();
+        });
+    }
+
+    setupTabNavigation() {
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                
+                // 更新按鈕狀態
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                // 更新內容顯示
+                tabContents.forEach(content => content.classList.remove('active'));
+                document.getElementById(`${tabId}-tab`).classList.add('active');
+                
+                this.currentTab = tabId;
+                
+                // 特定標籤的初始化
+                if (tabId === 'statistics') {
+                    this.updateStatistics();
+                }
+            });
+        });
+    }
+
+    setupOCR() {
+        const startCameraBtn = document.getElementById('start-camera');
+        const captureBtn = document.getElementById('capture-image');
+        const fileInput = document.getElementById('file-input');
+        const recognizeBtn = document.getElementById('recognize-text');
+        const video = document.getElementById('camera-feed');
+        const canvas = document.getElementById('canvas');
+        const previewImg = document.getElementById('preview-image');
+
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                video.play();
+                
+                captureBtn.disabled = false;
+                startCameraBtn.textContent = '停止相機';
+                startCameraBtn.onclick = () => this.stopCamera();
+                
+                this.camera = stream;
+            } catch (error) {
+                this.showNotification('無法啟動相機: ' + error.message, 'error');
+            }
+        });
+
+        captureBtn.addEventListener('click', () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+            
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                previewImg.src = url;
+                previewImg.style.display = 'block';
+                video.style.display = 'none';
+                recognizeBtn.disabled = false;
+            });
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                previewImg.src = url;
+                previewImg.style.display = 'block';
+                video.style.display = 'none';
+                recognizeBtn.disabled = false;
+            }
+        });
+
+        recognizeBtn.addEventListener('click', () => {
+            this.performOCR();
+        });
+    }
+
+    stopCamera() {
+        if (this.camera) {
+            this.camera.getTracks().forEach(track => track.stop());
+            this.camera = null;
+        }
+        
+        const video = document.getElementById('camera-feed');
+        const startCameraBtn = document.getElementById('start-camera');
+        const captureBtn = document.getElementById('capture-image');
+        
+        video.style.display = 'none';
+        startCameraBtn.textContent = '啟動相機';
+        startCameraBtn.onclick = null;
+        captureBtn.disabled = true;
+    }
+
+    async performOCR() {
+        const progressDiv = document.getElementById('ocr-progress');
+        const recognizeBtn = document.getElementById('recognize-text');
+        const extractedText = document.getElementById('extracted-text');
+        const previewImg = document.getElementById('preview-image');
+
+        try {
+            progressDiv.style.display = 'block';
+            recognizeBtn.disabled = true;
+            recognizeBtn.classList.add('loading');
+
+            const result = await Tesseract.recognize(
+                previewImg.src,
+                'chi_tra+eng',
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const progress = Math.round(m.progress * 100);
+                            document.querySelector('.progress-text').textContent = 
+                                `正在識別文字... ${progress}%`;
+                        }
+                    }
+                }
+            );
+
+            extractedText.value = result.data.text;
+            this.showNotification('文字識別完成！', 'success');
+
+        } catch (error) {
+            this.showNotification('文字識別失敗: ' + error.message, 'error');
+        } finally {
+            progressDiv.style.display = 'none';
+            recognizeBtn.disabled = false;
+            recognizeBtn.classList.remove('loading');
+        }
+    }
+
+    handlePlayerSubmit() {
+        const form = document.getElementById('player-form');
+        const formData = new FormData(form);
+        
+        const playerData = {
+            id: document.getElementById('player-id').value || this.generatePlayerId(),
+            name: document.getElementById('player-name').value,
+            registrationDate: document.getElementById('registration-date').value || new Date().toISOString().split('T')[0],
+            attendanceHistory: []
+        };
+
+        if (this.editingPlayerId) {
+            // 編輯現有玩家
+            const index = this.data.players.findIndex(p => p.id === this.editingPlayerId);
+            if (index !== -1) {
+                this.data.players[index] = { ...this.data.players[index], ...playerData };
+                this.showNotification('玩家資料已更新', 'success');
+            }
+            this.editingPlayerId = null;
+            document.getElementById('cancel-edit').style.display = 'none';
+        } else {
+            // 新增玩家
+            if (this.data.players.find(p => p.id === playerData.id)) {
+                this.showNotification('玩家ID已存在', 'error');
+                return;
+            }
+            this.data.players.push(playerData);
+            this.showNotification('玩家已新增', 'success');
+        }
+
+        form.reset();
+        this.renderPlayers();
+        this.updateStatistics();
+    }
+
+    handleActivitySubmit() {
+        const form = document.getElementById('activity-form');
+        
+        const activityData = {
+            id: this.generateActivityId(),
+            name: document.getElementById('activity-name').value,
+            date: document.getElementById('activity-date').value,
+            time: document.getElementById('activity-time').value,
+            description: document.getElementById('activity-description').value,
+            attendees: [],
+            status: 'upcoming'
+        };
+
+        this.data.activities.push(activityData);
+        this.showNotification('活動已建立', 'success');
+        
+        form.reset();
+        this.renderActivities();
+        this.updateStatistics();
+    }
+
+    generatePlayerId() {
+        const maxId = this.data.players.reduce((max, player) => {
+            const num = parseInt(player.id.slice(1));
+            return num > max ? num : max;
+        }, 0);
+        return `P${String(maxId + 1).padStart(3, '0')}`;
+    }
+
+    generateActivityId() {
+        const maxId = this.data.activities.reduce((max, activity) => {
+            const num = parseInt(activity.id.slice(1));
+            return num > max ? num : max;
+        }, 0);
+        return `A${String(maxId + 1).padStart(3, '0')}`;
+    }
+
+    renderPlayers() {
+        const container = document.getElementById('players-list');
+        
+        if (this.data.players.length === 0) {
+            container.innerHTML = '<p class="text-center">尚無玩家資料</p>';
+            return;
+        }
+
+        container.innerHTML = this.data.players.map(player => `
+            <div class="player-card" data-player-id="${player.id}">
+                <h4>${player.name}</h4>
+                <div class="player-id">ID: ${player.id}</div>
+                <div>註冊日期: ${player.registrationDate}</div>
+                <div>出席次數: ${player.attendanceHistory.length}</div>
+                <div class="player-actions">
+                    <button class="btn btn--sm btn--outline" onclick="app.editPlayer('${player.id}')">編輯</button>
+                    <button class="btn btn--sm btn--secondary" onclick="app.showPlayerQR('${player.id}')">QR碼</button>
+                    <button class="btn btn--sm btn--outline" onclick="app.deletePlayer('${player.id}')" style="color: var(--color-error);">刪除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    renderActivities() {
+        const container = document.getElementById('activities-list');
+        
+        if (this.data.activities.length === 0) {
+            container.innerHTML = '<p class="text-center">尚無活動資料</p>';
+            return;
+        }
+
+        container.innerHTML = this.data.activities.map(activity => `
+            <div class="activity-card">
+                <h4>${activity.name}</h4>
+                <div class="activity-info">
+                    <div class="activity-info-item">
+                        <div class="activity-info-label">日期</div>
+                        <div class="activity-info-value">${activity.date}</div>
+                    </div>
+                    <div class="activity-info-item">
+                        <div class="activity-info-label">時間</div>
+                        <div class="activity-info-value">${activity.time}</div>
+                    </div>
+                    <div class="activity-info-item">
+                        <div class="activity-info-label">狀態</div>
+                        <div class="activity-info-value">
+                            <span class="status status--${activity.status === 'upcoming' ? 'info' : 'success'}">
+                                ${activity.status === 'upcoming' ? '即將開始' : '進行中'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                ${activity.description ? `<p>${activity.description}</p>` : ''}
+                <div class="attendees-count">
+                    已簽到: ${activity.attendees.length} 人
+                </div>
+                <div class="activity-actions">
+                    <button class="btn btn--sm btn--primary" onclick="app.openCheckinModal('${activity.id}')">管理簽到</button>
+                    <button class="btn btn--sm btn--outline" onclick="app.deleteActivity('${activity.id}')" style="color: var(--color-error);">刪除活動</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    filterPlayers(searchTerm) {
+        const cards = document.querySelectorAll('.player-card');
+        cards.forEach(card => {
+            const name = card.querySelector('h4').textContent;
+            const id = card.querySelector('.player-id').textContent;
+            const matches = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           id.toLowerCase().includes(searchTerm.toLowerCase());
+            card.style.display = matches ? 'block' : 'none';
+        });
+    }
+
+    editPlayer(playerId) {
+        const player = this.data.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        document.getElementById('player-id').value = player.id;
+        document.getElementById('player-name').value = player.name;
+        document.getElementById('registration-date').value = player.registrationDate;
+        
+        this.editingPlayerId = playerId;
+        document.getElementById('cancel-edit').style.display = 'inline-block';
+        
+        // 切換到玩家管理標籤
+        document.querySelector('[data-tab="players"]').click();
+    }
+
+    cancelPlayerEdit() {
+        this.editingPlayerId = null;
+        document.getElementById('player-form').reset();
+        document.getElementById('cancel-edit').style.display = 'none';
+    }
+
+    deletePlayer(playerId) {
+        if (confirm('確定要刪除此玩家嗎？')) {
+            this.data.players = this.data.players.filter(p => p.id !== playerId);
+            this.showNotification('玩家已刪除', 'success');
+            this.renderPlayers();
+            this.updateStatistics();
+        }
+    }
+
+    deleteActivity(activityId) {
+        if (confirm('確定要刪除此活動嗎？')) {
+            this.data.activities = this.data.activities.filter(a => a.id !== activityId);
+            this.showNotification('活動已刪除', 'success');
+            this.renderActivities();
+            this.updateStatistics();
+        }
+    }
+
+    showPlayerQR(playerId) {
+        const player = this.data.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        const qrContainer = document.getElementById('qr-code-container');
+        const playerInfo = document.getElementById('qr-player-info');
+        
+        qrContainer.innerHTML = '';
+        QRCode.toCanvas(qrContainer, playerId, { width: 200 }, (error) => {
+            if (error) {
+                this.showNotification('QR碼生成失敗', 'error');
+                return;
+            }
+        });
+        
+        playerInfo.textContent = `${player.name} (${player.id})`;
+        this.showModal('qr-modal');
+    }
+
+    openCheckinModal(activityId) {
+        const activity = this.data.activities.find(a => a.id === activityId);
+        if (!activity) return;
+
+        this.currentActivityId = activityId;
+        document.getElementById('checkin-activity-name').textContent = activity.name;
+        document.getElementById('checkin-player-id').value = '';
+        
+        this.renderCheckinPlayers();
+        this.showModal('checkin-modal');
+    }
+
+    renderCheckinPlayers() {
+        const container = document.getElementById('checkin-players');
+        const activity = this.data.activities.find(a => a.id === this.currentActivityId);
+        
+        container.innerHTML = this.data.players.map(player => {
+            const isCheckedIn = activity.attendees.includes(player.id);
+            return `
+                <div class="checkin-player-item ${isCheckedIn ? 'checked-in' : ''}">
+                    <div>
+                        <div class="checkin-player-name">${player.name}</div>
+                        <div class="checkin-player-id">${player.id}</div>
+                    </div>
+                    <div>
+                        ${isCheckedIn ? 
+                            '<span class="status status--success">已簽到</span>' : 
+                            `<button class="btn btn--sm btn--primary" onclick="app.checkinPlayer('${player.id}')">簽到</button>`
+                        }
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    handleManualCheckin() {
+        const playerId = document.getElementById('checkin-player-id').value.trim();
+        if (!playerId) {
+            this.showNotification('請輸入玩家ID', 'error');
+            return;
+        }
+
+        this.checkinPlayer(playerId);
+    }
+
+    checkinPlayer(playerId) {
+        const activity = this.data.activities.find(a => a.id === this.currentActivityId);
+        const player = this.data.players.find(p => p.id === playerId);
+        
+        if (!player) {
+            this.showNotification('找不到該玩家', 'error');
+            return;
+        }
+
+        if (activity.attendees.includes(playerId)) {
+            this.showNotification('該玩家已經簽到', 'warning');
+            return;
+        }
+
+        activity.attendees.push(playerId);
+        player.attendanceHistory.push({
+            activityId: this.currentActivityId,
+            checkInTime: new Date().toISOString()
+        });
+
+        this.data.attendance.push({
+            playerId,
+            activityId: this.currentActivityId,
+            checkInTime: new Date().toISOString(),
+            status: 'present'
+        });
+
+        this.showNotification(`${player.name} 簽到成功`, 'success');
+        this.renderCheckinPlayers();
+        this.renderActivities();
+    }
+
+    updateStatistics() {
+        const totalPlayers = this.data.players.length;
+        const totalActivities = this.data.activities.length;
+        const totalAttendance = this.data.attendance.length;
+        const avgAttendance = totalActivities > 0 ? 
+            Math.round((totalAttendance / (totalPlayers * totalActivities)) * 100) : 0;
+
+        document.getElementById('total-players').textContent = totalPlayers;
+        document.getElementById('total-activities').textContent = totalActivities;
+        document.getElementById('avg-attendance').textContent = `${avgAttendance}%`;
+
+        this.renderAttendanceChart();
+    }
+
+    renderAttendanceChart() {
+        const ctx = document.getElementById('attendance-chart');
+        if (!ctx) return;
+
+        if (this.attendanceChart) {
+            this.attendanceChart.destroy();
+        }
+
+        const attendanceData = this.data.activities.map(activity => ({
+            name: activity.name,
+            count: activity.attendees.length
+        }));
+
+        this.attendanceChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: attendanceData.map(d => d.name),
+                datasets: [{
+                    label: '出席人數',
+                    data: attendanceData.map(d => d.count),
+                    backgroundColor: '#1FB8CD',
+                    borderColor: '#1FB8CD',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    exportStatistics() {
+        const startDate = document.getElementById('stats-start-date').value;
+        const endDate = document.getElementById('stats-end-date').value;
+        
+        const report = {
+            reportDate: new Date().toISOString().split('T')[0],
+            period: { startDate, endDate },
+            summary: {
+                totalPlayers: this.data.players.length,
+                totalActivities: this.data.activities.length,
+                totalAttendance: this.data.attendance.length
+            },
+            players: this.data.players.map(player => ({
+                id: player.id,
+                name: player.name,
+                registrationDate: player.registrationDate,
+                attendanceCount: player.attendanceHistory.length,
+                attendanceRate: this.data.activities.length > 0 ? 
+                    Math.round((player.attendanceHistory.length / this.data.activities.length) * 100) : 0
+            })),
+            activities: this.data.activities.map(activity => ({
+                id: activity.id,
+                name: activity.name,
+                date: activity.date,
+                attendeeCount: activity.attendees.length,
+                attendanceRate: this.data.players.length > 0 ? 
+                    Math.round((activity.attendees.length / this.data.players.length) * 100) : 0
+            }))
+        };
+
+        const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance-report-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        this.showNotification('統計報告已匯出', 'success');
+    }
+
+    setDefaultDates() {
+        const today = new Date();
+        const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        
+        document.getElementById('stats-start-date').value = oneWeekAgo.toISOString().split('T')[0];
+        document.getElementById('stats-end-date').value = today.toISOString().split('T')[0];
+        document.getElementById('registration-date').value = today.toISOString().split('T')[0];
+        document.getElementById('activity-date').value = today.toISOString().split('T')[0];
+    }
+
+    showModal(modalId) {
+        document.getElementById(modalId).style.display = 'flex';
+    }
+
+    closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+}
+
+// 初始化應用程式
+let app;
+document.addEventListener('DOMContentLoaded', () => {
+    app = new InteractiveRobotSystem();
+});
+import plotly.graph_objects as go
+import plotly.io as pio
+
+# Data from the provided JSON
+data = {
+    "features": [
+        {"name": "OCR文字識別", "capability": 95},
+        {"name": "玩家ID管理", "capability": 90},
+        {"name": "活動註冊", "capability": 88},
+        {"name": "出席率追蹤", "capability": 92},
+        {"name": "QR碼生成", "capability": 85},
+        {"name": "相機整合", "capability": 80},
+        {"name": "數據分析", "capability": 87},
+        {"name": "移動響應式", "capability": 95}
+    ]
+}
+
+# Extract feature names and capabilities
+features = [item["name"] for item in data["features"]]
+capabilities = [item["capability"] for item in data["features"]]
+
+# Create horizontal bar chart with gradient colors
+fig = go.Figure(data=[
+    go.Bar(
+        y=features,
+        x=capabilities,
+        orientation='h',
+        marker=dict(
+            color=capabilities,
+            colorscale=[[0, '#5D878F'], [1, '#1FB8CD']],  # Blue gradient using brand colors
+            showscale=False
+        ),
+        cliponaxis=False
+    )
+])
+
+# Update layout
+fig.update_layout(
+    title="Robot System Capabilities",
+    xaxis_title="Score %",
+    yaxis_title="Features",
+    xaxis=dict(range=[0, 100])
+)
+
+# Save the chart
+fig.write_image("robot_capabilities.png")
+import plotly.express as px
+import plotly.graph_objects as go
+import json
+
+# Data from the provided JSON
+data = {
+    "methods": [
+        {"name": "QR碼掃描", "percentage": 45},
+        {"name": "手動簽到", "percentage": 25},
+        {"name": "OCR文字識別", "percentage": 20},
+        {"name": "玩家ID輸入", "percentage": 10}
+    ]
+}
+
+# Extract names and values
+names = [method["name"] for method in data["methods"]]
+values = [method["percentage"] for method in data["methods"]]
+
+# Use brand colors in order, replacing the light green with a more distinct color
+colors = ["#1FB8CD", "#FFC185", "#B4413C", "#5D878F"]
+
+# Create pie chart
+fig = go.Figure(data=[go.Pie(
+    labels=names, 
+    values=values,
+    marker_colors=colors,
+    textinfo='label+percent',
+    textposition='inside'
+)])
+
+# Update layout following the instructions
+fig.update_layout(
+    title="Attendance Tracking Methods",
+    uniformtext_minsize=14, 
+    uniformtext_mode='hide'
+)
+
+# Save as PNG
+fig.write_image("attendance_tracking_pie_chart.png")
